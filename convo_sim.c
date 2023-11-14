@@ -15,15 +15,6 @@ void awgn();
 void encoder();
 void decoder();
 
-// popcount utility for calculating xor
-// uint8_t popcount8( uint8_t b )
-// {
-//      b = b - ((b >> 1) & 0x55);
-//      b = (b & 0x33) + ((b >> 2) & 0x33);
-//      return (((b + (b >> 4)) & 0x0F) * 0x01);
-// }
-
-
 // looks like magic but i swear its legit
 // table stores codeword corresponding to state transitions
 // array indexes look like (current state)+(next state), + respresenting append
