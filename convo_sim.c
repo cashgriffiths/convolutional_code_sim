@@ -9,46 +9,53 @@
 #define demap(x) ( (x) > 0 ? 1 : 0 )
 int i;
 
-const int mu = 2; // memory of encoder
-const float R = (float) 1/mu; // code rate
-// generator polynomials for rate 1/2, mu = 2
-const uint8_t g1 = 0b111;
-const uint8_t g2 = 0b101;
+
 
 void awgn();
 void encoder();
 void decoder();
 
 // popcount utility for calculating xor
-uint8_t popcount8( uint8_t b )
-{
-     b = b - ((b >> 1) & 0x55);
-     b = (b & 0x33) + ((b >> 2) & 0x33);
-     return (((b + (b >> 4)) & 0x0F) * 0x01);
-}
+// uint8_t popcount8( uint8_t b )
+// {
+//      b = b - ((b >> 1) & 0x55);
+//      b = (b & 0x33) + ((b >> 2) & 0x33);
+//      return (((b + (b >> 4)) & 0x0F) * 0x01);
+// }
 
-uint8_t transition_codeword_pairs[1 << (mu + 2)];
 
 // looks like magic but i swear its legit
 // table stores codeword corresponding to state transitions
 // array indexes look like (current state)+(next state), + respresenting append
 // array entries are 3 bits; lower two are the codeword, 3rd bit is message bit
-void tr_cw_pairs() {
-    memset(transition_codeword_pairs, -1, 1 << (mu + 2));
+void tr_cw_pairs(transition_codeword_pairs, mu, g1, g2) 
+uint8_t transition_codeword_pairs[];
+int mu;
+uint32_t g1, g2;
+{
+    memset(transition_codeword_pairs, -1, 1 << (mu << 1));
     for (i = 0; i < 1 << mu; i++) {
-        uint8_t state1 = i << 1, state2 = (i << 1) | 0b1;
-        transition_codeword_pairs[(i << 2) | (state1 & 0b11)] = ((popcount8(state1 & g1) & 0b1) << 1) | (popcount8(state1 & g2) & 0b1);
-        transition_codeword_pairs[(i << 2) | (state2 & 0b11)] = ((popcount8(state2 & g1) & 0b1) << 1) | (popcount8(state2 & g2) & 0b1) | 0b100;
+        uint32_t state1 = i << 1, state2 = (i << 1) | 0b1;
+        uint16_t mask = ((1 << mu) - 1);
+        transition_codeword_pairs[(i << mu) | (state1 & mask)] = ((__builtin_popcount(state1 & g1) & 0b1) << 1) | (__builtin_popcount(state1 & g2) & 0b1);
+        transition_codeword_pairs[(i << mu) | (state2 & mask)] = ((__builtin_popcount(state2 & g1) & 0b1) << 1) | (__builtin_popcount(state2 & g2) & 0b1) | 0b100;
     }
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 3) {
+    if (argc != 5) {
         printf("Usage: \n");
         exit(1);
     }
     float SNRdb = atof(argv[1]);
     int k = atoi(argv[2]);
+
+    // generator polynomials for rate 1/2, mu = 2
+    // uint32_t g1 = atoi(argv[3]);
+    uint32_t g1 = strtoll(argv[3], NULL, 8);
+    uint32_t g2 = strtoll(argv[4], NULL, 8);
+    int mu = 31 - __builtin_clz(g1); // memory of encoder
+    const float R = 0.5; // code rate
     
     float EcNodB = SNRdb + 10*log10(R);  // general formula *if* there was coding
     float EcNo = pow(10.0, EcNodB/10.0);
@@ -58,40 +65,41 @@ int main(int argc, char* argv[]) {
     long blk_errs = 0, blk_errs_max = 100, blk_cnt = 0, bit_errs;
     float r[(k+mu)*2];
     // float r[8] = {-.7, -.5, -.8, -.6, -1.1, .4, .9, .8};
-    uint8_t m[k+mu], c[(k+mu)*2], y[k+mu+1];
+    uint8_t m[k+mu], c[(k+mu)*2];
+    uint32_t y[k+mu+1];
+    uint8_t transition_codeword_pairs[1 << (mu << 1)];
 
     srand(time(NULL));
-    tr_cw_pairs();
+    tr_cw_pairs(transition_codeword_pairs, mu, g1, g2);
 
     while (blk_errs < blk_errs_max) {
         blk_cnt++;
-
+        memset(m, 0, sizeof m);
         memset(y, 0, sizeof y);
 
         // get a block of data
         for(i=0; i<k; i++) m[i] = (rand()>>5) & 0b1;
-        for(i=k; i<k+mu; i++) m[i] = 0;
         
 
-        encoder(m, c, k+mu);
+        encoder(m, c, k+mu, transition_codeword_pairs, mu);
 
-        awgn(sigma, c, r, sizeof c);
+        awgn(sigma, c, r, 2*(k+mu));
         
         
         
-
-        // decode
-        decoder(r, y, k+mu);
-        
-        /* debug nonsense */
         // for (i = 0; i < k; i++) printf("%d", m[i]);
         // printf("\n");
         // for (i = 0; i < 2* (k+mu); i++) printf("%d", c[i]);
         // printf("\n");
+
+        // decode
+        decoder(r, y, k+mu, transition_codeword_pairs, mu);
+        
+        /* debug nonsense */
         // for (i = 0; i < 2* (k+mu); i++) printf("%f ", r[i]);
         // printf("\n");
         // for (i = 0; i < k; i++) printf("%d", y[i]);
-        // printf("\n\n");
+        // printf("\n");
 
         // exit(0);
 
@@ -107,13 +115,14 @@ int main(int argc, char* argv[]) {
 }
 
 // implements shift register encoder method
-void encoder(m, c, k) 
-uint8_t m[], c[];
-int k;
+void encoder(m, c, k, transition_codeword_pairs, mu) 
+uint8_t m[], c[], transition_codeword_pairs[];
+int k, mu;
 {
-    uint8_t state = 0;
+    uint32_t state = 0;
     for (i = 0; i < k; i++) {
-        uint8_t cw = transition_codeword_pairs[((state & 0b11) << 2) | (((state << 1) | m[i]) & 0b11)] & 3;
+        uint16_t mask = ((1 << mu) - 1);
+        uint8_t cw = transition_codeword_pairs[((state & mask) << mu) | (((state << 1) | m[i]) & mask)] & 0b11; 
         c[2*i] = cw >> 1;
         c[2*i + 1] = cw & 0b1;
         state <<= 1;
@@ -124,13 +133,14 @@ int k;
 /* this ones a doozy
  * viterbi traceback decoder for ZTCC
 */
-void decoder(r, y, k) 
+void decoder(r, y, k, transition_codeword_pairs, mu) 
 float r[];
-uint8_t y[];
-int k;
+uint32_t y[];
+uint8_t transition_codeword_pairs[];
+int k, mu;
 {
     float gamma[1 << mu][k+1]; // cunulative metric
-    uint8_t h[1 << mu][k+1]; // state history
+    uint32_t h[1 << mu][k+1]; // state history
 
     // prepare arrays
     memset(h, 0, sizeof h);
@@ -140,7 +150,8 @@ int k;
     // prepare some variables
     float r1, r2;
     int j;
-    uint8_t s1, s2, c1, c2;
+    uint32_t s1, s2;
+    uint8_t c1, c2;
     float test1, test2;
 
     // for each trellis stage
@@ -151,11 +162,11 @@ int k;
         // for each possible encoder state
         for (j = 0; j < 1 << mu; j++) {
             // get S(s), i.e. possible previous states
-            if (j & 0b10) s1 = 1, s2 = 3;
-            else s1 = 0, s2 = 2;
+            s1 = (j >> 1) | (1 << (mu-1));
+            s2 = j >> 1;
             // codeword is lower 2 bits of table entry
-            c1 = transition_codeword_pairs[(s1 << 2) | j] & 3;
-            c2 = transition_codeword_pairs[(s2 << 2) | j] & 3;
+            c1 = transition_codeword_pairs[(s1 << mu) | j] & 0b11;
+            c2 = transition_codeword_pairs[(s2 << mu) | j] & 0b11;
             // calculate cumulative metric for each possible state
             test1 = gamma[s1][i-1] + r1 * map(c1 >> 1) + r2 * map(c1 & 0b1);
             test2 = gamma[s2][i-1] + r1 * map(c2 >> 1) + r2 * map(c2 & 0b1);
@@ -167,6 +178,7 @@ int k;
                 gamma[j][i] = test2;
                 h[j][i] = s2;
             }
+
         }
     }  
 
@@ -198,15 +210,14 @@ int k;
     // } printf("\n");
 
     // slightly messy, fills result array with state transitions
-    uint8_t c;
     for (int l = k; l > 0; l--) {
-        c = h[y[l]][l];
-        y[l-1] = c;
-    }
+        y[l-1] = h[y[l]][l];
+    } 
+    // printf("\n"); exit(0);
     // converts state transitions to original message bit
     // separate loops for clarity, can be consolidated for performance
     for (int l = 0; l < k; l++) {
-        y[l] = transition_codeword_pairs[y[l] << 2 | y[l+1]] >> 2;
+        y[l] = transition_codeword_pairs[y[l] << mu | y[l+1]] >> 2;
     }
 }
 
