@@ -35,7 +35,7 @@ uint32_t g1, g2;
 
 int main(int argc, char* argv[]) {
     if (argc != 5) {
-        printf("Usage: \n");
+        printf("Usage: ./a.out <snr-db> <message_len> <g1> <g2>\n");
         exit(1);
     }
     float SNRdb = atof(argv[1]);
