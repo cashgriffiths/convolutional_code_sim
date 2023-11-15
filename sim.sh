@@ -13,6 +13,6 @@ fi
 for SNR in $(seq $START $INC $END)
 do
     echo "SNR: $SNR dB"
-    ./a.out $SNR $N $G1 $G2 | grep ^[bT] | cat
+    ./convo_sim $SNR $N $G1 $G2 | grep ^[bT] | cat
     echo
 done
