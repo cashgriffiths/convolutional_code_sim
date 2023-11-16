@@ -54,10 +54,11 @@ int main(int argc, char* argv[]) {
     float sigma = sqrt(sigsqrd);
 
     long blk_errs = 0, blk_errs_max = 100, blk_cnt = 0, bit_errs;
-    float r[(k+mu)*2];
+    const int offset = 2;
+    float r[(k+offset)*2];
     // float r[8] = {-.7, -.5, -.8, -.6, -1.1, .4, .9, .8};
-    uint8_t m[k+mu], c[(k+mu)*2];
-    uint32_t y[k+mu+1];
+    uint8_t m[k+offset], c[(k+offset)*2];
+    uint32_t y[k+offset+1];
     uint8_t transition_codeword_pairs[1 << (mu << 1)];
 
     srand(time(NULL));
@@ -72,9 +73,9 @@ int main(int argc, char* argv[]) {
         for(i=0; i<k; i++) m[i] = (rand()>>5) & 0b1;
         
 
-        encoder(m, c, k+mu, transition_codeword_pairs, mu);
+        encoder(m, c, k+offset, transition_codeword_pairs, mu);
 
-        awgn(sigma, c, r, 2*(k+mu));
+        awgn(sigma, c, r, 2*(k+offset));
         
         
         
@@ -84,7 +85,7 @@ int main(int argc, char* argv[]) {
         // printf("\n");
 
         // decode
-        decoder(r, y, k+mu, transition_codeword_pairs, mu);
+        decoder(r, y, k+offset, transition_codeword_pairs, mu);
         
         /* debug nonsense */
         // for (i = 0; i < 2* (k+mu); i++) printf("%f ", r[i]);
@@ -96,13 +97,13 @@ int main(int argc, char* argv[]) {
 
         // count bit errors and block errors
         int flag = 0;
-        for(i=0; i<k+mu; i++)
+        for(i=0; i<k+offset; i++)
             if(y[i] != m[i]) { bit_errs++; flag = 1; }
         if(flag) blk_errs++; 
 
     }
     printf("bit-error rate = %10.2e\nblock-error rate = %10.2e \n",
-             (float)bit_errs/((k+mu)*blk_cnt), (float)blk_errs/blk_cnt);
+             (float)bit_errs/((k+offset)*blk_cnt), (float)blk_errs/blk_cnt);
 }
 
 // implements shift register encoder method
