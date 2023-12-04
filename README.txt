@@ -1,4 +1,4 @@
-Executable usage: ./a.out <snr-db> <message_len> <g1> <g2>
+Executable usage: ./convo_sim <snr-db> <message_len> <g1> <g2>
 Run make to compile, make clean to remove. 
 The simulator will determine memory size from provided generator polynomials <g1> and <g2>. SNR is provided as a float in dB
 
