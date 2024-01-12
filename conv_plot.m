@@ -7,6 +7,15 @@ pb_2 = [4.25e-02 1.79e-02 4.43e-03 8.67e-04 1.41e-04 1.29e-05 6.80e-07];
 
 pb_6 = [3.54e-02 4.3e-03 4.46e-04 2.17e-05 7.56e-07];
 
+p = zeros(1,7);
+for ii=x
+    p(ii) = qfunc(sqrt(2*10^(ii/10)));
+end
+
+u_100 = 1-(1-p).^100;
+u_1000 = 1-(1-p).^1000;
+u_5000 = 1-(1-p).^5000;
+
 semilogy(x, y_100,'LineWidth',2), grid, hold on
 % semilogy(x, y_ht,'LineWidth',2)
 semilogy(x, y_1000,'LineWidth',2)
@@ -14,6 +23,12 @@ semilogy(x, y_1000,'LineWidth',2)
 semilogy(x, y_5000,'LineWidth',2)
 semilogy(x, pb_2,'LineWidth',2)
 semilogy(1:5, pb_6,'LineWidth',2)
+
+
+semilogy(x, u_100,'LineWidth',2)
+semilogy(x, u_1000,'LineWidth',2)
+semilogy(x, u_5000,'LineWidth',2)
+
 xlim([1 9])
 xlabel('Eb/N0 (dB)')
 ylabel('Codeword error probability')
